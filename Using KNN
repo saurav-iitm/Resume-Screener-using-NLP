@@ -1,0 +1,214 @@
+import numpy as np # linear algebra
+import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import re
+import torch
+import torch.nn as nn
+# Input data files are available in the read-only "../input/" directory
+# For example, running this (by clicking run or pressing Shift+Enter) will list all files under the input directory
+
+import os
+for dirname, _, filenames in os.walk('/kaggle/input'):
+    for filename in filenames:
+      print(os.path.join(dirname, filename))
+data_path="/content/UpdatedResumeDataSet.csv"
+category=['Data Science', 'HR', 'Advocate', 'Arts', 'Web Designing',
+       'Mechanical Engineer', 'Sales', 'Health and fitness',
+       'Civil Engineer', 'Java Developer', 'Business Analyst',
+       'SAP Developer', 'Automation Testing', 'Electrical Engineering',
+       'Operations Manager', 'Python Developer', 'DevOps Engineer',
+       'Network Security Engineer', 'PMO', 'Database', 'Hadoop',
+       'ETL Developer', 'DotNet Developer', 'Blockchain', 'Testing']
+df=pd.read_csv(data_path)
+df.head()
+df.info()
+df["Category"].unique()
+df['Resume'][0]
+import spacy
+import nltk
+
+from nltk.corpus import stopwords
+import spacy
+from spacy.cli import download
+from spacy import load
+nlp = spacy.load("en_core_web_sm")
+from nltk.stem import WordNetLemmatizer
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+nltk.download('wordnet')
+nltk.download('wordnet2022')
+nlp = load('en_core_web_sm')
+! cp -rf /usr/share/nltk_data/corpora/wordnet2022 /usr/share/nltk_data/corpora/wordnet
+nltk.download('stopwords')
+nltk.download('wordnet')
+stop_words = set(stopwords.words('english'))
+lemmatizer = WordNetLemmatizer()
+class Preprocessing(nn.Module):
+    def __init__(self, cat_list):
+        super(Preprocessing, self).__init__()
+        self.catl=cat_list
+
+    def preprocess_text(self, text):
+        text = text.lower()                            # Lowercase
+        text = re.sub(r'[^\w\s.]', '', text)  # Remove punctuation
+        text =re.sub(r'(?i)(?<=\b[a-z])\.(?=[a-z]{2,}\b)', '', text)
+        text = re.sub(r"\s+", " ", text).strip()       # Remove extra whitespace
+        text = re.sub(r'\r\n', ' ', text)
+        tokens = text.split()  # Simple tokenization
+        # lemmatizer = WordNetLemmatizer()
+        # tokens = [lemmatizer.lemmatize(word) for word in tokens if word not in stop_words]  # Lemmatization and stopword removal
+        return ' '.join(tokens)
+
+
+    def forward(self, data):
+        df=data.copy()
+        df['Resume']=df['Resume'].apply(self.preprocess_text)
+        return df
+preprocess=Preprocessing(category)
+df_cleaned=preprocess(df)
+df_cleaned["Resume"][69]
+test=df["Resume"][69]
+cleaned_test=preprocess.preprocess_text(test)
+print(cleaned_test)
+from PIL import Image
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+import matplotlib.pyplot as plt
+all_sentences=''
+total_words=[]
+cleaned_sentences=df_cleaned["Resume"].values
+for sent in cleaned_sentences:
+    all_sentences+=sent
+    tokens=sent.split()
+    for token in tokens:
+        if token not in stop_words and len(token)>1 and not token.isdigit():
+            total_words.append(token)
+wordFreq=nltk.FreqDist(total_words)
+mostcommon = wordFreq.most_common(30)
+mostcommon
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
+le = LabelEncoder()
+vectorizer=TfidfVectorizer()
+df_cleaned["enc_category"]=le.fit_transform(df_cleaned["Category"])
+category_enc=[ 6, 12,  0,  1, 24, 16, 22, 14,  5, 15,  4, 21,  2, 11, 18, 20,  8,
+       17, 19,  7, 13, 10,  9,  3, 23]
+y=df_cleaned["enc_category"]
+X=vectorizer.fit_transform(df_cleaned["Resume"])
+cleaned_test_x=vectorizer.transform([cleaned_test])
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.33, random_state=42)
+from sklearn.linear_model import LogisticRegression
+from sklearn.multiclass import OneVsRestClassifier
+from sklearn.metrics import classification_report
+ovrc_model=OneVsRestClassifier(LogisticRegression())
+ovrc_model.fit(X_train, y_train)
+y_pred=ovrc_model.predict(X_test)
+test_pred=ovrc_model.predict(cleaned_test_x)
+print(classification_report(y_test, y_pred, target_names=category))
+df_cleaned["Resume"][9]
+temp_sent=df_cleaned["Resume"][10]
+print(temp_sent)
+keywords={"skills":[], "exprience":[], "company":[], "project":[], "education detail":[]}
+experience_keywords=["company details"]
+import nltk
+nltk.download('punkt_tab')
+from nltk.tokenize import sent_tokenize
+sentences=sent_tokenize(temp_sent)
+experience_sent=[]
+for word in keywords:
+    for token in sentences:
+        if word in token:
+            keywords[word].append(token)
+keywords
+import re
+import nltk
+from nltk.tokenize import sent_tokenize, word_tokenize
+import spacy
+
+# Load spaCy model
+nlp = spacy.load("en_core_web_sm")
+
+def extract_resume_information(resume_text):
+    # Normalize text
+    resume_text = resume_text.lower().replace('\n', ' ')
+
+    # Define common section headers in resumes
+    section_headers = {
+        'education': ['education', 'academic background', 'qualifications', 'degrees'],
+        'experience': ['experience', 'work history', 'employment', 'work experience', 'professional experience'],
+        'skills': ['skills', 'technical skills', 'competencies', 'expertise'],
+        'projects': ['projects', 'project experience', 'key projects'],
+        'certifications': ['certifications', 'certificates', 'professional certifications'],
+        'contact': ['contact', 'personal information', 'contact details']
+    }
+     # Initialize results dictionary
+    extracted_info = {
+        'education': [],
+        'experience': [],
+        'skills': [],
+        'projects': [],
+        'certifications': [],
+        'contact': [],
+        'companies': [],
+        'job_titles': [],
+        'technologies': [],
+        'duration': []
+    }
+      # Process with spaCy for entity recognition
+    doc = nlp(resume_text)
+
+    # Extract entities
+    for ent in doc.ents:
+        if ent.label_ == "ORG":
+            extracted_info['companies'].append(ent.text)
+        elif ent.label_ == "DATE":
+            # Look for duration patterns
+            if re.search(r'\b(year|month|yr|mo)\b', ent.text):
+                extracted_info['duration'].append(ent.text)
+
+    # Split into sentences
+    sentences = sent_tokenize(resume_text)
+
+    # Extract information from each sentence
+    for sent in sentences:
+        # Process sentence with spaCy
+        sent_doc = nlp(sent)
+         # Identify skills (technology keywords)
+        tech_keywords = ['python', 'java', 'javascript', 'sql', 'ml', 'ai', 'machine learning',
+                        'neural', 'react', 'angular', 'node', 'aws', 'azure', 'cloud', 'docker']
+        for keyword in tech_keywords:
+            if re.search(r'\b' + keyword + r'\b', sent):
+                if keyword not in extracted_info['technologies']:
+                    extracted_info['technologies'].append(keyword)
+
+        # Look for job titles
+        job_titles = ['engineer', 'developer', 'manager', 'analyst', 'scientist', 'associate',
+                     'consultant', 'director', 'lead', 'architect']
+        for title in job_titles:
+            # Look for patterns like "senior software engineer"
+            job_pattern = re.search(r'\b\w+\s+\w+\s+' + title + r'\b|\b\w+\s+' + title + r'\b', sent)
+            if job_pattern and job_pattern.group() not in extracted_info['job_titles']:
+                extracted_info['job_titles'].append(job_pattern.group())
+        # Categorize sentence into sections
+        for section, headers in section_headers.items():
+            for header in headers:
+                if re.search(r'\b' + header + r'\b', sent):
+                    extracted_info[section].append(sent)
+                    break
+
+    # Look for experience with context
+    experience_pattern = re.compile(r'(?:([a-z ]+) experience:? ([0-9]+) (?:years|months|year|month))|(?:([0-9]+) (?:years|months|year|month) (?:of)? ([a-z ]+) experience)', re.IGNORECASE)
+    experience_matches = experience_pattern.findall(resume_text)
+    for match in experience_matches:
+        parts = [p for p in match if p]
+        if len(parts) >= 2:
+            skill = parts[0] if not parts[0].isdigit() else parts[1]
+            duration = parts[0] if parts[0].isdigit() else parts[1]
+            extracted_info['skills'].append(f"{skill}: {duration} {'years' if 'year' in parts[1] else 'months'}")
+     # Clean up results
+    for key in extracted_info:
+        extracted_info[key] = list(set(extracted_info[key]))
+
+    return extracted_info
+gg=extract_resume_information(temp_sent)
+print(gg)
